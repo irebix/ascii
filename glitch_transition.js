@@ -7,6 +7,11 @@ setTimeout(() => {
     glitchCanvas.height = canvas.height;
     glitchCanvas.style.position = 'absolute';
     glitchCanvas.style.zIndex = '2';
+    glitchCanvas.style.maxWidth = '100%';
+    glitchCanvas.style.maxHeight = '100%';
+    glitchCanvas.style.width = 'auto';
+    glitchCanvas.style.height = 'auto';
+    glitchCanvas.style.objectFit = 'contain';
     document.getElementById('container').appendChild(glitchCanvas);
     
     const glitchCtx = glitchCanvas.getContext('2d');
@@ -35,6 +40,22 @@ setTimeout(() => {
         const transitionStartTime = Date.now();
         const glitchFrames = 30; // 增加故障效果的帧数，使闪烁更快
         let lastGlitchTime = 0;
+        
+        // 监听窗口大小变化
+        window.addEventListener('resize', () => {
+            glitchCanvas.width = canvas.width;
+            glitchCanvas.height = canvas.height;
+            
+            // 重新绘制当前状态
+            if (Date.now() - transitionStartTime < transitionDuration) {
+                // 过渡还在进行中，重新绘制当前状态
+                const progress = (Date.now() - transitionStartTime) / transitionDuration;
+                updateTransition(progress);
+            } else {
+                // 过渡已完成，显示原始图片
+                originalImage.style.opacity = '1';
+            }
+        });
         
         function applyGlitchEffect(imageData, intensity) {
             const data = new Uint8ClampedArray(imageData.data);
@@ -116,6 +137,13 @@ setTimeout(() => {
                 return;
             }
             
+            updateTransition(progress);
+            
+            // 继续动画
+            requestAnimationFrame(transitionUpdate);
+        }
+        
+        function updateTransition(progress) {
             // 清除过渡Canvas
             glitchCtx.clearRect(0, 0, canvas.width, canvas.height);
             
@@ -123,6 +151,7 @@ setTimeout(() => {
             let newImageData;
             
             // 直接应用故障效果，不使用叠化
+            const now = Date.now();
             const timeSinceLastGlitch = now - lastGlitchTime;
             const glitchInterval = 1000 / glitchFrames; // 控制故障效果的频率
             
@@ -149,9 +178,6 @@ setTimeout(() => {
             
             // 将新的图像数据绘制到过渡Canvas上
             glitchCtx.putImageData(newImageData, 0, 0);
-            
-            // 继续动画
-            requestAnimationFrame(transitionUpdate);
         }
         
         // 开始过渡动画

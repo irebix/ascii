@@ -21,12 +21,21 @@ def create_html_animation(code, target_image_path, output_path='output/animation
         canvas_width = orig_width  # 1920
         canvas_height = orig_height  # 879
         
-        # 调整ASCII艺术的大小以匹配原始图片的比例
-        aspect_ratio = orig_height / orig_width
+        # 调整ASCII艺术的字符数量以完全铺满原始图片
+        # 不再使用固定宽度，而是根据原始图片尺寸计算合适的字符数量
         char_width_height_ratio = 0.5  # 字符的宽高比
-        target_aspect_ratio = aspect_ratio * char_width_height_ratio
-        height = int(width * target_aspect_ratio)
         
+        # 计算合适的字符数量，确保完全铺满原始图片
+        # 我们希望每个字符在Canvas上的显示尺寸合适
+        target_char_width = 10  # 每个字符在Canvas上的目标宽度（像素）
+        target_char_height = 20  # 每个字符在Canvas上的目标高度（像素）
+        
+        width = int(canvas_width / target_char_width)  # 字符宽度
+        height = int(canvas_height / target_char_height)  # 字符高度
+        
+        print(f"ASCII艺术字符数量：宽度={width}，高度={height}")
+        
+        # 调整图片大小以匹配字符数量
         img = img.resize((width, height))
         print(f"调整后的ASCII艺术大小：{img.size}")
         
@@ -84,30 +93,39 @@ def create_html_animation(code, target_image_path, output_path='output/animation
                     display: flex;
                     justify-content: center;
                     align-items: center;
-                    min-height: 100vh;
+                    width: 100vw;
+                    height: 100vh;
                     overflow: hidden;
                 }}
                 #container {{
-                    width: {canvas_width}px;
-                    height: {canvas_height}px;
+                    width: 100%;
+                    height: 100%;
                     display: flex;
                     justify-content: center;
                     align-items: center;
                     position: relative;
+                    background-color: #000000;
                 }}
                 canvas {{
                     image-rendering: pixelated;
                     position: absolute;
                     z-index: 1;
-                    width: {canvas_width}px;
-                    height: {canvas_height}px;
+                    max-width: 100%;
+                    max-height: 100%;
+                    width: auto;
+                    height: auto;
+                    object-fit: contain;
                 }}
                 #originalImage {{
                     position: absolute;
                     z-index: 0;
                     opacity: 0;
-                    width: {canvas_width}px;
-                    height: {canvas_height}px;
+                    max-width: 100%;
+                    max-height: 100%;
+                    width: auto;
+                    height: auto;
+                    object-fit: contain;
+                    background-color: #000000;
                 }}
             </style>
         </head>
@@ -126,12 +144,39 @@ def create_html_animation(code, target_image_path, output_path='output/animation
                 const ctx = canvas.getContext('2d');
                 
                 // 设置Canvas大小为原始图片尺寸
-                canvas.width = {canvas_width};
-                canvas.height = {canvas_height};
+                const originalImage = document.getElementById('originalImage');
                 
-                // 计算字符大小以适应画布
-                const charWidth = Math.ceil({canvas_width} / targetAscii[0].length);
-                const charHeight = Math.ceil({canvas_height} / targetAscii.length);
+                // 在原始图片加载完成后设置Canvas大小
+                originalImage.onload = function() {{
+                    // 设置Canvas大小为原始图片的自然尺寸
+                    canvas.width = {orig_width};
+                    canvas.height = {orig_height};
+                    
+                    // 开始动画
+                    animate();
+                }};
+                
+                // 标记动画是否完成
+                let animationCompleted = false;
+                
+                // 绘制最终状态的函数
+                function drawFinalState() {{
+                    // 计算字符大小以完全铺满画布
+                    const charWidth = canvas.width / targetAscii[0].length;
+                    const charHeight = canvas.height / targetAscii.length;
+                    
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.font = `${{charHeight}}px monospace`;
+                    ctx.textBaseline = 'top';
+                    
+                    for (let i = 0; i < targetAscii.length; i++) {{
+                        for (let j = 0; j < targetAscii[i].length; j++) {{
+                            const cell = targetAscii[i][j];
+                            ctx.fillStyle = cell.color;
+                            ctx.fillText(cell.char, j * charWidth, i * charHeight);
+                        }}
+                    }}
+                }}
                 
                 // 解析源代码
                 const sourceLines = sourceCode.split('\\n');
@@ -158,6 +203,10 @@ def create_html_animation(code, target_image_path, output_path='output/animation
                 function animate() {{
                     const duration = 4000; // 4秒
                     const startTime = Date.now();
+                    
+                    // 计算字符大小以完全铺满画布
+                    const charWidth = canvas.width / targetAscii[0].length;
+                    const charHeight = canvas.height / targetAscii.length;
                     
                     // 初始显示源代码
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -189,17 +238,8 @@ def create_html_animation(code, target_image_path, output_path='output/animation
                         
                         if (progress >= 1) {{
                             // 最终状态
-                            ctx.clearRect(0, 0, canvas.width, canvas.height);
-                            ctx.font = `${{charHeight}}px monospace`;
-                            ctx.textBaseline = 'top';
-                            
-                            for (let i = 0; i < targetAscii.length; i++) {{
-                                for (let j = 0; j < targetAscii[i].length; j++) {{
-                                    const cell = targetAscii[i][j];
-                                    ctx.fillStyle = cell.color;
-                                    ctx.fillText(cell.char, j * charWidth, i * charHeight);
-                                }}
-                            }}
+                            animationCompleted = true;
+                            drawFinalState();
                             
                             {glitch_js.replace('setTimeout(() => {', 'setTimeout(() => {').replace('}, 300);', '}, 100);')}
                             
@@ -250,8 +290,13 @@ def create_html_animation(code, target_image_path, output_path='output/animation
                 
                 // 页面加载完成后开始动画
                 document.addEventListener('DOMContentLoaded', () => {{
-                    // 立即开始动画
-                    animate();
+                    // 图片加载完成后会自动开始动画
+                    if (originalImage.complete) {{
+                        // 如果图片已经加载完成，直接设置Canvas大小并开始动画
+                        canvas.width = {orig_width};
+                        canvas.height = {orig_height};
+                        animate();
+                    }}
                 }});
             </script>
         </body>
